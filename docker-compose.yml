@@ -1,0 +1,101 @@
+services:
+  nginx:
+    image: nginx:1.25
+    container_name: nginx
+    ports:
+      - "15432:15432"
+      - "17017:17017"
+      - "16379:16379"
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - distrib-net
+    depends_on:
+      - pg-primary
+      - mongo-primary
+      - mongo-secondary
+      - redis-master
+
+  pg-primary:
+    image: postgres:16
+    container_name: pg-primary
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: db_primary
+    volumes:
+      - pg_primary_data:/var/lib/postgresql/data
+    networks:
+      - distrib-net
+
+  pg-secondary:
+    image: postgres:16
+    container_name: pg-secondary
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: db_secondary
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_secondary_data:/var/lib/postgresql/data
+    networks:
+      - distrib-net
+
+  mongo-primary:
+    image: mongo:7
+    container_name: mongo-primary
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - mongo_primary_data:/data/db
+    networks:
+      - distrib-net
+
+  mongo-secondary:
+    image: mongo:7
+    container_name: mongo-secondary
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo_secondary_data:/data/db
+    networks:
+      - distrib-net
+
+  redis-master:
+    image: redis:7
+    container_name: redis-master
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./config/redis/master.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis_master_data:/data
+    networks:
+      - distrib-net
+
+  redis-replica:
+    image: redis:7
+    container_name: redis-replica
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./config/redis/replica.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis_replica_data:/data
+    networks:
+      - distrib-net
+    depends_on:
+      - redis-master
+
+networks:
+  distrib-net:
+    driver: bridge
+
+volumes:
+  pg_primary_data:
+  pg_secondary_data:
+  mongo_primary_data:
+  mongo_secondary_data:
+  redis_master_data:
+  redis_replica_data:
